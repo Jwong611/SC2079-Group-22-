@@ -3,8 +3,9 @@ from Commons.Types import Position
 from Grid.Map import Map
 from Commons.Enums import Movement
 from math import pi
-from Commons.Utils import calc_vector
+from Commons.Utils import calc_vector, euclidean
 import numpy as np
+import heapq
 from Robot_Movements.Movements import (
     forward,
     backward,
@@ -141,9 +142,27 @@ class Astar :
                         next_pos_continous = f(current_pos)
                         next_pos_snap = next_pos_continous.snap() #snap continous into discrete
                         next_tuple = next_pos_snap.to_tuple() # hashable
-
-                        if next_tuple in self.closed or has_collision(current_pos,mv,self.map) :
+                        
+                        # checking successor if its expanded or will collide
+                        if next_tuple in self.closed or self.has_collision(current_pos,mv,self.map) :
                                 continue
+                        # penalty for changing motion
+                        penalty = PENALTY_STOP if (v != node.v or s != node.s) else 0
+
+                        # update path cost
+                        g =  node.g + penalty + d
+                        h = euclidean(next_pos_continous, self.end)
+
+                        # building sucessor node
+                        next_node = Node(next_pos_snap, next_pos_continous, g, h, node, v, s, d)
+
+                        # self.open : priority queue of nodes ordered by cost (f)
+                        # look up the smallest f we've seen for this cell, if there is a better f, then update disctionary index self.open_h
+                        best = self.open_h.get(next_tuple)
+                        if best is None or next_node.f < best :
+                                self.open_h[next_tuple] = next_node.f
+                                heapq.heappush(self.open, next_node)
+
 
         
         
