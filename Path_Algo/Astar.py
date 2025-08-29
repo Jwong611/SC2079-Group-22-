@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from Commons.Types import Position
 from Grid.Map import Map
 from Commons.Enums import Movement
@@ -6,6 +6,7 @@ from math import pi
 from Commons.Utils import calc_vector, euclidean
 import numpy as np
 import heapq
+import logging
 from Robot_Movements.Movements import (
     forward,
     backward,
@@ -30,6 +31,8 @@ from Commons.Constants import (
     WPS_BL, 
     WPS_BR,
 )
+
+logger = logging.getLogger('ASTAR')
 
 class Node :
         __slots__ = ("pos", "c_pos", "g", "h", "v", "s", "d", "parent")
@@ -162,6 +165,64 @@ class Astar :
                         if best is None or next_node.f < best :
                                 self.open_h[next_tuple] = next_node.f
                                 heapq.heappush(self.open, next_node)
+
+
+        def set_bounds(self):
+                vv = calc_vector(self.end.theta, 1)
+                vh = calc_vector(self.end.theta - pi/2, 1)
+
+                end = np.array([self.end.x, self.end.y])
+                _TR = end + vh * MAX_X_ERR[1] + vv * MAX_Y_ERR[0]
+                _BL = end - vh * MAX_X_ERR[0] - vv * MAX_Y_ERR[1]
+
+                self.x_bounds = sorted([_TR[0], _BL[0]])
+                self.y_bounds = sorted([_TR[1], _BL[1]])
+
+
+        def search(
+                self,
+                start: "Position",
+                end: "Position",
+                ) -> List["Node"]:
+
+                logger.info(f'Start search from {start} to {end}')
+                end_node = Node(end, end, 0, 0)
+                self.end = end
+                self.open = [Node(start.snap(), start,0, 0)]
+                self.open_h = {} # index dictionary to remember best f per discrete cell
+                self.closed = [] # list of cells already expanded
+                self.set_bounds()
+
+                while self.open:
+                        node = heapq.heappop(self.open) # pop node with lowest f
+                        tup = node.pos.to_tuple()
+                        logger.debug(f'{node} {node.parent}')
+
+                        if self.goal(node.c_pos):
+                                logger.info(f'Found goal {end_node}')
+                                return self._reconstruct(node)
+
+                        self.closed.append(tup) # move to closed
+                        self.expand(node) 
+
+                        for o in self.open[:5]:
+                                logger.debug(f'{o.c_pos}, {o}')
+
+                logger.info(f'Unable to reach {end} from {start}')
+                return []
+
+
+        def reconstruct(  # constructing path from start to goal in result
+                self,
+                last: "Node"
+                ) -> List["Node"]:
+                result = []
+
+                while last:
+                        result.append(last)
+                        last = last.parent
+
+                return result[::-1]
 
 
         
